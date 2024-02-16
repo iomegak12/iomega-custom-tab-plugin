@@ -1,0 +1,209 @@
+<script nonce="{{nonce}}">
+
+    function confirmDelete(event) {
+        event.preventDefault();
+        let del = confirm("Please confirm you wish to delete these managed services from this instance!");
+        if (del) {
+            deleteConfirmed();
+        }
+    }
+
+    function deleteConfirmed(){
+        const controller = location.hostname + '/plugin/managed-services/delete';
+        const nonce = "{{nonce}}";
+
+        // capture nonce and save to cookie
+        document.cookie = "morpheus-managed-service-nonce={{nonce}}; path=/";
+
+        // gather the selected ids
+        let deleteList = [];
+        const services = document.getElementsByClassName("managed-service-select");
+        for (let i = 0; i < services.length; i++) {
+            if (services[i].checked) {
+                deleteList.push(services[i].getAttribute("data-id"))
+            }
+        }
+
+        // we only have GET contoller support?
+        // can't send a request body with GET using JS fetch api
+        // so we will serialise and append as querystring
+        const data = {
+            nonce: nonce,
+            deleteList: deleteList
+        }
+
+        const qs = makeQueryString(data);
+        const uri = "https://" + controller + "?" + qs
+        const badResponse = "There was a problem deleting";
+        getRequest(uri).
+            then((res) => {
+                console.log(res);
+                if (res.status == "200") {
+                    // we will delete all the rows in the DOM
+                    deleteList.forEach((id)=>{
+                        document.getElementById("result-"+ id).remove();
+                    })
+                } else {
+                    alert(badResponse)
+                }
+            }).
+            catch((err) => {
+                alert(badResponse + ": " + err);
+            }
+        );
+    }
+
+    async function getRequest(uri = "") {
+        const response = await fetch(uri, {
+                method: "GET",
+                mode: "cors",
+                cache: "no-cache",
+                credentials: "same-origin", // cookie auth?
+                headers: {"Content-Type": "application/json"},
+                redirect: "follow",
+                referrerPolicy: "no-referrer",
+            });
+        return response.json();
+    }
+
+    function makeQueryString(obj, prefix) {
+        let str = [], p;
+        for (p in obj) {
+            if (obj.hasOwnProperty(p)) {
+                let k = prefix ? prefix + "[" + p + "]" : p,
+                        v = obj[p];
+                str.push((v !== null && typeof v === "object") ?
+                        makeQueryString(v, k) :
+                        encodeURIComponent(k) + "=" + encodeURIComponent(v));
+            }
+        }
+        return str.join("&");
+    }
+
+    // wait for load
+    document.addEventListener("DOMContentLoaded", function(event){
+        const btn = document.getElementById("delete-button");
+        btn.addEventListener("click", confirmDelete);
+    });
+</script>
+
+<style>
+    .custom-heading {
+        font-weight:bold!important;
+    }
+    .custom-footer {
+        font-weight:bold;
+    }
+
+    .custom-label {
+        font-size: 1rem;
+    }
+    .custom-border-bottom {
+        border-bottom: 1px solid #999999;
+    }
+
+    th, td {line-height:32px!important;padding-top:5px;}
+</style>
+
+<div class="tab-content">
+    <div id="overview-tab" role="tabpanel" class="tab-pane active">
+        <!-- start dashboard -->
+        <div class="resource-dashboard">
+            <div class="tab-header-stats">
+                <div class="tab-header-stat-item big-stat-block">
+	                <span class="stat-content">
+                        {{count}}
+	                </span>
+                    <span class="stat-label">
+		                Managed Services
+	                </span>
+                </div>
+                <div class="tab-header-stat-item big-stat-block">
+                    <span class="stat-content">
+                        {{currencySymbol}}{{total}}
+                    </span>
+                    <span class="stat-label">
+		                Total Services Cost
+	                </span>
+                </div>
+
+                <div class="tab-header-stat-item big-stat-block">
+	                <span class="stat-content">
+                        {{currencySymbol}}{{avg}}
+	                </span>
+                    <span class="stat-label">
+		                Average Service Cost
+	                </span>
+                </div>
+
+                <div class="tab-header-stat-item big-stat-block">
+	                <span class="stat-content">
+		                {{currencySymbol}}{{max}}
+	                </span>
+                    <span class="stat-label">
+		                Most Expensive Service
+	                </span>
+                </div>
+
+            </div>
+        </div>
+        <!-- end dashboard -->
+
+        <!-- start detail -->
+        <div class="custom-detail-margin">
+            <h2>Service Detail</h2>
+            <p>The following managed services are installed on this Instance.</p>
+
+            <!-- start actions -->
+            <div class="btn-group pull-right">
+                <button type="button" disabled="" class="instance-actions-button min-button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    Actions <span class="caret"></span>
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a id="delete-button">Delete Services</a></li>
+                </ul>
+            </div>
+            <!-- end actions -->
+
+            <table class="table table-striped custom-border-bottom">
+                <thead>
+                <tr>
+                    <th style="width:5%">
+                        <div class="checkbox-container">
+                            <label>
+                                <input type="hidden" name="_instanceSelectAll"><input type="checkbox" name="instanceSelectAll" class="instance-select-all" tabindex="4" id="instanceSelectAll"> <span class="custom"></span>
+                            </label>
+                            <label class="visible-sm">Select All</label>
+                        </div>
+                    </th>
+                    <th class="custom-heading" style="width:25%">NAME</th><th class="custom-heading" style="width:60%">DESCRIPTION</th><th class="custom-heading" style="width:10%;text-align:right;">COST</th>
+                </tr>
+                </thead>
+                <tbody>
+                <!-- how to include the currency symbol within the each -->
+                {{#each results}}
+                    <tr id="result-{{this.id}}">
+                        <td>
+                            <div class="select-block">
+                                <div class="checkbox-container">
+                                    <label>
+                                        <input type="hidden" name="_instanceMultiselect"><input type="checkbox" name="instanceMultiselect" class="instance-multiselect managed-service-select" data-id="{{this.id}}" data-status="running" data-hasservices="" tabindex="4" data-owners="1" id="instanceMultiselect"> <span class="custom"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </td>
+                        <td>{{this.service_name}}</td><td>{{this.service_description}}</td><td style="text-align:right;">{{../currencySymbol}}{{this.service_cost}}</td>
+                    </tr>
+                {{/each}}
+                </tbody>
+                <tfoot>
+                    <tr>
+                     <td colspan="3" class="custom-footer">TOTAL</td><td class="custom-footer" style="text-align:right;">{{currencySymbol}}{{total}}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <!-- end detail -->
+
+    </div>
+</div>
